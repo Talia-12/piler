@@ -1,61 +1,11 @@
-use std::num::ParseIntError;
+use lalrpop_util::lalrpop_mod;
 
-use logos::Logos;
-
-#[derive(Default, Debug, Clone, PartialEq)]
-enum LexingError {
-	InvalidInteger(String),
-	#[default]
-	NonAsciiCharacter,
-}
-
-/// Error type returned by calling `lex.slice().parse()` to u8.
-impl From<ParseIntError> for LexingError {
-	fn from(err: ParseIntError) -> Self {
-		use std::num::IntErrorKind::*;
-		match err.kind() {
-			PosOverflow | NegOverflow => LexingError::InvalidInteger("overflow error".to_owned()),
-			_ => LexingError::InvalidInteger("other error".to_owned()),
-		}
-	}
-}
-
-#[derive(Logos, Debug, PartialEq)]
-#[logos(error = LexingError)]
-enum Token<'a> {
-    #[token("+")]
-    Add,
-
-		#[token("-")]
-    Sub,
-
-		#[token("*")]
-    Mul,
-
-		#[token("/")]
-    Div,
-
-		#[token("(")]
-    LBrace,
-
-		#[token(")")]
-    RBrace,
-
-    // Or regular expressions.
-    #[regex("[a-zA-Z]+", |lex| lex.slice())]
-    Text(&'a str),
-
-    #[regex("[0-9]+", |lex| lex.slice().parse())]
-		Number(u64),
-
-    // We can also use this variant to define whitespace,
-    // or any other matches we wish to skip.
-    #[regex(r"[ \t\n\f]+", logos::skip)]
-    Whitespace,
-}
+lalrpop_mod!(pub calculator1); // synthesized by LALRPOP
 
 fn main() {
+	let mut errors = Vec::new();
 
+	println!("{:?}", calculator1::ExprParser::new().parse(&mut errors, "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
 }
 
 #[cfg(test)]
@@ -63,21 +13,12 @@ mod test {
 	use super::*;
 
 	#[test]
-	fn test_simple_lex() {
-		let mut lex = Token::lexer("1 + 2 + a - 12*4 + 22 / 13");
+	fn calculator1() {
+		let mut errors = Vec::new();
 	
-		assert_eq!(lex.next(), Some(Ok(Token::Number(1))));
-		assert_eq!(lex.next(), Some(Ok(Token::Add)));
-		assert_eq!(lex.next(), Some(Ok(Token::Number(2))));
-		assert_eq!(lex.next(), Some(Ok(Token::Add)));
-		assert_eq!(lex.next(), Some(Ok(Token::Text("a"))));
-		assert_eq!(lex.next(), Some(Ok(Token::Sub)));
-		assert_eq!(lex.next(), Some(Ok(Token::Number(12))));
-		assert_eq!(lex.next(), Some(Ok(Token::Mul)));
-		assert_eq!(lex.next(), Some(Ok(Token::Number(4))));
-		assert_eq!(lex.next(), Some(Ok(Token::Add)));
-		assert_eq!(lex.next(), Some(Ok(Token::Number(22))));
-		assert_eq!(lex.next(), Some(Ok(Token::Div)));
-		assert_eq!(lex.next(), Some(Ok(Token::Number(13))));
+		assert!(calculator1::ExprParser::new().parse(&mut errors, "22").is_ok());
+		assert!(calculator1::ExprParser::new().parse(&mut errors, "(22)").is_ok());
+		assert!(calculator1::ExprParser::new().parse(&mut errors, "((((22))))").is_ok());
+		assert!(calculator1::ExprParser::new().parse(&mut errors, "((22)").is_err());
 	}
 }

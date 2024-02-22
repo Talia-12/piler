@@ -1,0 +1,29 @@
+use std::str::FromStr;
+use lalrpop_util::ParseError;
+use lalrpop_util::ErrorRecovery;
+
+grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
+
+pub Expr: i32 = {
+    <l:Expr> "+" <r:Factor> => l + r,
+    <l:Expr> "-" <r:Factor> => l - r,
+    Factor,
+};
+
+Factor: i32 = {
+    <l:Factor> "*" <r:Term> => l * r,
+    <l:Factor> "/" <r:Term> => l / r,
+    Term,
+};
+
+Term: i32 = {
+    Num,
+    "(" <Expr> ")",
+};
+
+Num: i32 = {
+    r"[0-9]+" =>? i32::from_str(<>)
+        .map_err(|_| ParseError::User {
+            error: "number is too big"
+        })
+};
