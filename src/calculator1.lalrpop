@@ -1,29 +1,44 @@
-use std::str::FromStr;
-use lalrpop_util::ParseError;
 use lalrpop_util::ErrorRecovery;
+use piler::{tokens::Token, lexer::LexicalError};
 
-grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
+grammar<'input, 'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
 
-pub Expr: i32 = {
-    <l:Expr> "+" <r:Factor> => l + r,
-    <l:Expr> "-" <r:Factor> => l - r,
-    Factor,
+extern {
+  type Location = usize;
+  type Error = LexicalError;
+
+	enum Token<'input> {
+		"+"      => Token::Add,
+		"-"      => Token::Sub,
+		"*"      => Token::Mul,
+		"/"	     => Token::Div,
+		"("	     => Token::LBrace,
+		")"	     => Token::RBrace,
+		"identifier" => Token::Identifier(<&'input str>),
+		"number" => Token::Number(u64),
+	}
+}
+
+pub Expr: i64 = {
+	<l:Expr> "+" <r:Factor> => l + r,
+	<l:Expr> "-" <r:Factor> => l - r,
+	Factor,
 };
 
-Factor: i32 = {
-    <l:Factor> "*" <r:Term> => l * r,
-    <l:Factor> "/" <r:Term> => l / r,
-    Term,
+Factor: i64 = {
+	<l:Factor> "*" <r:Term> => l * r,
+	<l:Factor> "/" <r:Term> => l / r,
+	Term,
 };
 
-Term: i32 = {
-    Num,
-    "(" <Expr> ")",
+Term: i64 = {
+	Num,
+	"(" <Expr> ")",
 };
 
-Num: i32 = {
-    r"[0-9]+" =>? i32::from_str(<>)
-        .map_err(|_| ParseError::User {
-            error: "number is too big"
-        })
+Num: i64 = {
+	<"number"> => match <> {
+		Token::Number(n) => n,
+		_ => unreachable!()
+	}
 };
