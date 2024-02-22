@@ -55,19 +55,29 @@ enum Token<'a> {
 }
 
 fn main() {
-	let mut lex = Token::lexer("1 + 2 + a - 12*4 + 22 / 13");
+
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_simple_lex() {
+		let mut lex = Token::lexer("1 + 2 + a - 12*4 + 22 / 13");
 	
-	assert_eq!(lex.next(), Some(Ok(Token::Number(1))));
-	assert_eq!(lex.next(), Some(Ok(Token::Add)));
-	assert_eq!(lex.next(), Some(Ok(Token::Number(2))));
-	assert_eq!(lex.next(), Some(Ok(Token::Add)));
-	assert_eq!(lex.next(), Some(Ok(Token::Text("a"))));
-	assert_eq!(lex.next(), Some(Ok(Token::Sub)));
-	assert_eq!(lex.next(), Some(Ok(Token::Number(12))));
-	assert_eq!(lex.next(), Some(Ok(Token::Mul)));
-	assert_eq!(lex.next(), Some(Ok(Token::Number(4))));
-	assert_eq!(lex.next(), Some(Ok(Token::Add)));
-	assert_eq!(lex.next(), Some(Ok(Token::Number(22))));
-	assert_eq!(lex.next(), Some(Ok(Token::Div)));
-	assert_eq!(lex.next(), Some(Ok(Token::Number(13))));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(1))));
+		assert_eq!(lex.next(), Some(Ok(Token::Add)));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(2))));
+		assert_eq!(lex.next(), Some(Ok(Token::Add)));
+		assert_eq!(lex.next(), Some(Ok(Token::Text("a"))));
+		assert_eq!(lex.next(), Some(Ok(Token::Sub)));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(12))));
+		assert_eq!(lex.next(), Some(Ok(Token::Mul)));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(4))));
+		assert_eq!(lex.next(), Some(Ok(Token::Add)));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(22))));
+		assert_eq!(lex.next(), Some(Ok(Token::Div)));
+		assert_eq!(lex.next(), Some(Ok(Token::Number(13))));
+	}
 }
