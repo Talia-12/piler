@@ -1,0 +1,226 @@
+use lalrpop_util::ErrorRecovery;
+use crate::{tokens::Token, lexer::LexicalError, ast::*};
+
+grammar<'input, 'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
+
+extern {
+  type Location = usize;
+  type Error = LexicalError;
+
+	enum Token<'input> {
+		":="         => Token::Assign,
+		":"          => Token::Colon,
+		";"          => Token::Semicolon,
+		".."         => Token::Range,
+		"("          => Token::LParen,
+		")"          => Token::RParen,
+		"["          => Token::LBracket,
+		"]"          => Token::RBracket,
+		"="          => Token::Equals,
+		"!="         => Token::NEquals,
+		">="         => Token::GEquals,
+		">"          => Token::Greater,
+		"<="         => Token::LEquals,
+		"<"          => Token::Less,
+		"+"          => Token::Plus,
+		"-"          => Token::Minus,
+		"*"          => Token::Times,
+		"/"          => Token::Divide,
+		"begin"      => Token::Begin,
+		"call"       => Token::Call,
+		"const"      => Token::Const,
+		"do"         => Token::Do,
+		"else"       => Token::Else,
+		"end"        => Token::End,
+		"if"         => Token::If,
+		"procedure"  => Token::Procedure,
+		"read"       => Token::Read,
+		"then"       => Token::Then,
+		"type"       => Token::Type,
+		"var"        => Token::Var,
+		"while"      => Token::While,
+		"write"      => Token::Write,
+		"identifier" => Token::Identifier(<&'input str>),
+		"number"     => Token::Number(<i64>),
+	}
+}
+
+pub Program: Block<'input> = {
+	Block
+}
+
+pub Block: Block<'input> = {
+	<decls:Decleration*> <body:CompoundStatement> => Block {
+		decls, body, locals: Scope::default()
+	}
+}
+
+Decleration: Decl<'input> = {
+	ConstDefList, TypeDefList, VarDeclList, ProcedureDef
+}
+
+ConstDefList: Decl<'input> = {
+	"const" <consts:ConstDef+> => Decl::List(consts)
+}
+
+ConstDef: Symbol<'input> = {
+	<id:"identifier"> "=" <c:Constant> ";" => Symbol::ConstDef {
+		id, c
+	}
+}
+
+Constant: Exp<'input> = {
+	Exp
+}
+
+TypeDefList: Decl<'input> = {
+	"type" <types:TypeDef+> => Decl::List(types)
+}
+
+TypeDef: Symbol<'input> = {
+	<id:"identifier"> "=" <t:Type> ";" => Symbol::TypeDef {
+		id, t
+	}
+}
+
+Type: Type<'input> = {
+	<TypeIdentifier> => Type::Identifier(<>),
+	SubrangeType
+}
+
+TypeIdentifier: &'input str = {
+	"identifier"
+}
+
+SubrangeType: Type<'input> = {
+	"(" <min:Constant> ".." <max:Constant> ")" => Type::Subrange {
+		min, max
+	}
+}
+
+VarDeclList: Decl<'input> = {
+	"var" <vars:VarDecl+> => Decl::List(vars)
+}
+
+VarDecl: Symbol<'input> = {
+	<var_id:"identifier"> ":" <type_id:TypeIdentifier> ";" => Symbol::VarDef(VarDef {
+		var_id, type_id
+	})
+}
+
+pub ProcedureDef: Decl<'input> = {
+	<head:ProcedureHead> "=" <block:Block> ";" => Decl::Procedure(head, block)
+}
+
+ProcedureHead: ProcedureEntry<'input> = {
+	"procedure" <id:"identifier"> "(" <params:FormalParameters> ")" => ProcedureEntry {
+		id, params
+	}
+}
+
+FormalParameters: () = { }
+
+CompoundStatement: Statement<'input> = {
+	"begin" <StatementList> "end" => Statement::List(<>)
+}
+
+StatementList: Vec<Statement<'input>> = {
+	<mut sl:StatementList> ";" <s:Statement> => {
+		sl.push(s);
+		sl
+	},
+	<Statement> => vec![<>]
+}
+
+pub Statement: Statement<'input> = {
+	Assignment, CallStatement, ReadStatement, WriteStatement,
+	WhileStatement, IfStatement, CompoundStatement
+}
+
+Assignment: Statement<'input> = {
+	<lvalue:LValue> ":=" <e:Exp> => Statement::Assignment { lvalue, e }
+}
+
+CallStatement: Statement<'input> = {
+	"procedure" <id:"identifier"> "(" <params:ActualParamenters> ")" => Statement::Call {
+		id, params
+	}
+}
+
+ActualParamenters: () = { }
+
+ReadStatement: Statement<'input> = {
+	"read" <LValue> => Statement::Read(<>)
+}
+
+WriteStatement: Statement<'input> = {
+	"write" <Exp> => Statement::Write(<>)
+}
+
+WhileStatement: Statement<'input> = {
+	"while" <cond:Condition> "do" <s:Statement> => Statement::While {
+		cond, s: Box::new(s)
+	}
+}
+
+IfStatement: Statement<'input> = {
+	"if" <cond:Condition> "then" <t:Statement> "else" <f:Statement> => Statement::If {
+		cond, t: Box::new(t), f: Box::new(f)
+	}
+}
+
+Condition: Exp<'input> = {
+	RelCondition
+}
+
+RelCondition: Exp<'input> = {
+	<l:Exp> <op:RelOp> <r:Exp> => Exp::Binary {
+		op, left: Box::new(l), right: Box::new(r)
+	},
+	Exp
+}
+
+RelOp: BinaryOperator = {
+	"="  => BinaryOperator::Equals,
+	"!=" => BinaryOperator::NEquals,
+	">=" => BinaryOperator::GEquals,
+	">"  => BinaryOperator::Greater,
+	"<=" => BinaryOperator::LEquals,
+	"<"  => BinaryOperator::Less,
+}
+
+pub Exp: Exp<'input> = {
+	<l:Exp> <op:ExpBinOp> <r:Term> => Exp::Binary {
+		op, left: Box::new(l), right: Box::new(r)
+	},
+	<op:ExpUnOp?> <t:Term> => match op {
+		None => t,
+		Some(op) => Exp::Unary { op, arg: Box::new(t) }
+	}
+}
+
+ExpUnOp: UnaryOperator = {
+	"+" => UnaryOperator::Positive,
+	"-" => UnaryOperator::Negative
+}
+
+ExpBinOp: BinaryOperator = {
+	"+" => BinaryOperator::Add,
+	"-" => BinaryOperator::Sub
+}
+
+Term: Exp<'input> = {
+	<l:Term> "*" <r:Factor> => Exp::Binary { op: BinaryOperator::Mul, left: Box::new(l), right: Box::new(r) },
+	<l:Term> "/" <r:Factor> => Exp::Binary { op: BinaryOperator::Div, left: Box::new(l), right: Box::new(r) },
+	Factor
+}
+
+pub Factor: Exp<'input> = {
+	"(" <Condition> ")" => <>,
+	<"number"> => Exp::Const(<>),
+	LValue
+}
+
+LValue: Exp<'input> = {
+	<"identifier"> => Exp::Identifier(<>)
+}
