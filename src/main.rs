@@ -1,4 +1,3 @@
-use lalrpop_util::lalrpop_mod;
 use piler::{lexer::Lexer, parser};
 
 fn main() {

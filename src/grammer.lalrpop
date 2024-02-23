@@ -93,7 +93,7 @@ TypeIdentifier: &'input str = {
 }
 
 SubrangeType: Type<'input> = {
-	"(" <min:Constant> ".." <max:Constant> ")" => Type::Subrange {
+	"[" <min:Constant> ".." <max:Constant> "]" => Type::Subrange {
 		min, max
 	}
 }
@@ -113,12 +113,12 @@ pub ProcedureDef: Decl<'input> = {
 }
 
 ProcedureHead: ProcedureEntry<'input> = {
-	"procedure" <id:"identifier"> "(" <params:FormalParameters> ")" => ProcedureEntry {
-		id, params
+	"procedure" <id:"identifier"> "(" ")" => ProcedureEntry {
+		id, params: ()
 	}
 }
 
-FormalParameters: () = { }
+// FormalParameters: () = { }
 
 CompoundStatement: Statement<'input> = {
 	"begin" <StatementList> "end" => Statement::List(<>)
@@ -142,12 +142,12 @@ Assignment: Statement<'input> = {
 }
 
 CallStatement: Statement<'input> = {
-	"procedure" <id:"identifier"> "(" <params:ActualParamenters> ")" => Statement::Call {
-		id, params
+	"call" <id:"identifier"> "(" ")" => Statement::Call {
+		id, params: ()
 	}
 }
 
-ActualParamenters: () = { }
+// ActualParamenters: () = { }
 
 ReadStatement: Statement<'input> = {
 	"read" <LValue> => Statement::Read(<>)
@@ -217,7 +217,7 @@ Term: Exp<'input> = {
 
 pub Factor: Exp<'input> = {
 	"(" <Condition> ")" => <>,
-	<"number"> => Exp::Const(<>),
+	<"number"> => Exp::Number(<>),
 	LValue
 }
 

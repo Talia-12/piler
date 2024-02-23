@@ -1,28 +1,12 @@
 use variantly::Variantly;
 
-#[derive(Debug)]
+#[derive(Debug, Variantly)]
 pub enum Decl<'a> {
 	List(Vec<Symbol<'a>>),
 	Procedure(ProcedureEntry<'a>, Block<'a>)
 }
 
-impl<'a> Decl<'a> {
-	fn list(&'a self) -> Option<&Vec<Symbol<'a>>> {
-		match self {
-			Self::List(vec) => Some(vec),
-			_ => None
-		}
-	}
-
-	fn procedure(&'a self) -> Option<(&ProcedureEntry, &Block)> {
-		match self {
-			Self::Procedure(entry, block) => Some((entry, block)),
-			_ => None
-		}
-	}
-}
-
-#[derive(Debug)]
+#[derive(Debug, Variantly)]
 pub enum Symbol<'a> {
 	ConstDef { id: &'a str, c: Exp<'a> },
 	TypeDef { id: &'a str, t: Type<'a> },
@@ -30,43 +14,29 @@ pub enum Symbol<'a> {
 }
 
 impl<'a> Symbol<'a> {
-	fn const_def(&'a self) -> Option<(&'a str, &'a Exp<'a>)> {
+	pub fn const_def_ref(&'a self) -> Option<(&'a str, &'a Exp<'a>)> {
 		match self {
 			Self::ConstDef { id, c } => Some((*id, c)),
 			_ => None
 		}
 	}
 
-	fn type_def(&'a self) -> Option<(&'a str, &'a Type<'a>)> {
+	pub fn type_def_ref(&'a self) -> Option<(&'a str, &'a Type<'a>)> {
 		match self {
 			Self::TypeDef { id, t } => Some((id, t)),
 			_ => None
 		}
 	}
-
-	fn var_def(&'a self) -> Option<&'a VarDef<'a>> {
-		match self {
-			Self::VarDef(v) => Some(v),
-			_ => None
-		}
-	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Variantly)]
 pub enum Type<'a> {
 	Identifier(&'a str),
 	Subrange { min: Exp<'a>, max: Exp<'a> }
 }
 
 impl<'a> Type<'a> {
-	fn identifier(&'a self) -> Option<&'a str> {
-		match self {
-			Self::Identifier(id) => Some(id),
-			_ => None
-		}
-	}
-
-	fn subrange(&'a self) -> Option<(&'a Exp<'a>, &'a Exp<'a>)> {
+	fn subrange_ref(&'a self) -> Option<(&'a Exp<'a>, &'a Exp<'a>)> {
 		match self {
 			Self::Subrange { min, max } => Some((min, max)),
 			_ => None
@@ -90,12 +60,12 @@ pub struct Block<'a> {
 	pub locals: Scope
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Scope {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Variantly)]
 pub enum Statement<'a> {
 	Error,
 	Assignment { lvalue: Exp<'a>, e: Exp<'a> },
@@ -107,20 +77,67 @@ pub enum Statement<'a> {
 	While { cond: Exp<'a>, s: Box<Statement<'a>> }
 }
 
-#[derive(Debug)]
+impl<'a> Statement<'a> {
+	pub fn assignment_ref(&'a self) -> Option<(&'a Exp<'a>, &'a Exp<'a>)> {
+		match self {
+			Self::Assignment { lvalue, e } => Some((lvalue, e)),
+			_ => None
+		}
+	}
+
+	pub fn call_ref(&'a self) -> Option<(ProcId<'a>, &())> {
+		match self {
+			Self::Call { id, params } => Some((id, params)),
+			_ => None
+		}
+	}
+
+	pub fn if_ref(&'a self) -> Option<(&Exp<'a>, &Box<Statement<'a>>, &Box<Statement<'a>>)> {
+		match self {
+			Self::If { cond, t, f } => Some((cond, t, f)),
+			_ => None
+		}
+	}
+
+	pub fn while_ref(&'a self) -> Option<(&Exp<'a>, &Box<Statement<'a>>)> {
+		match self {
+			Self::While { cond, s } => Some((cond, s)),
+			_ => None
+		}
+	}
+}
+
+
+#[derive(Debug, Variantly)]
 pub enum Exp<'a> {
 	Error,
-	Const(i64),
+	Number(i64),
 	Identifier(&'a str),
 	// TODO: Variable,
 	Binary { op: BinaryOperator, left: Box<Exp<'a>>, right: Box<Exp<'a>> },
 	Unary { op: UnaryOperator, arg: Box<Exp<'a>> },
-	Dereference(),
-	NarrowSubrange(),
-	WidenSubrange()
+	Dereference(),    // TODO
+	NarrowSubrange(), // TODO
+	WidenSubrange()   // TODO
 }
 
-#[derive(Debug)]
+impl<'a> Exp<'a> {
+	pub fn binary_ref(&'a self) -> Option<(&'a BinaryOperator, &'a Box<Exp<'a>>, &'a Box<Exp<'a>>)> {
+		match self {
+			Self::Binary { op, left, right } => Some((op, left, right)),
+			_ => None
+		}
+	}
+
+	pub fn unary_ref(&'a self) -> Option<(&'a UnaryOperator, &'a Box<Exp<'a>>)> {
+		match self {
+			Self::Unary { op, arg } => Some((op, arg)),
+			_ => None
+		}
+	}
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinaryOperator {
 	Add,
 	Sub,
@@ -134,7 +151,7 @@ pub enum BinaryOperator {
 	Less
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
 	Positive,
 	Negative
@@ -149,7 +166,30 @@ mod test {
 	use Exp::*;
 	use BinaryOperator::*;
 	use crate::{lexer::Lexer, parser::{self, ParseError}};
-	use lalrpop_util::lalrpop_mod;
+
+	/*
+	#[test]
+	fn test_procedure_head() {
+		let input = "procedure sum()";
+
+		let expected = ProcedureEntry { id: "sum", params: (), };
+
+		let mut errors = Vec::new();
+
+		let parsed: Result<ProcedureEntry, ParseError> = parser::ProcedureHeadParser::new().parse(
+			&mut errors,
+			Lexer::new(input)
+		);
+
+		let parsed = match parsed {
+			Ok(p) => p,
+			Err(err) => panic!("error while parsing, {:?}", err),
+		};
+
+		assert_eq!(expected.id, parsed.id);
+		assert_eq!(expected.params, parsed.params);
+	}
+	*/
 
 	#[test]
 	fn test_complex_parse() {
@@ -224,8 +264,8 @@ mod test {
 
 		let expected = Block {
 			decls: vec![
-				Decl::List(vec![ Symbol::ConstDef { id: "C", c: Const(42) } ]),
-				Decl::List(vec![ Symbol::TypeDef { id: "S", t: Type::Subrange { min: Const(0), max: Identifier("C") } } ]),
+				Decl::List(vec![ Symbol::ConstDef { id: "C", c: Number(42) } ]),
+				Decl::List(vec![ Symbol::TypeDef { id: "S", t: Type::Subrange { min: Number(0), max: Identifier("C") } } ]),
 				Decl::List(vec![
 					Symbol::VarDef(VarDef { var_id: "b", type_id: "boolean" }),
 					Symbol::VarDef(VarDef { var_id: "r", type_id: "int" }),
@@ -237,13 +277,13 @@ mod test {
 						Decl::List(vec![ Symbol::VarDef(VarDef { var_id: "i", type_id: "S" }) ]),
 					],
 					body: List(vec![
-						Assignment { lvalue: Identifier("i"), e: Const(0) },
-						Assignment { lvalue: Identifier("res"), e: Const(0) },
+						Assignment { lvalue: Identifier("i"), e: Number(0) },
+						Assignment { lvalue: Identifier("res"), e: Number(0) },
 						While {
 							cond: Binary { op: NEquals, left: Box::new(Identifier("i")), right: Box::new(Identifier("x")) },
 							s: Box::new(List(vec![
 								Assignment { lvalue: Identifier("res"), e: Binary { op: Add, left: Box::new(Identifier("res")), right: Box::new(Identifier("i")) } },
-								Assignment { lvalue: Identifier("i"), e: Binary { op: Add, left: Box::new(Identifier("i")), right: Box::new(Const(1)) } },
+								Assignment { lvalue: Identifier("i"), e: Binary { op: Add, left: Box::new(Identifier("i")), right: Box::new(Number(1)) } },
 							]))
 						}
 					]),
@@ -256,7 +296,7 @@ mod test {
 				If {
 					cond: Identifier("b"),
 					t: Box::new(Assignment { lvalue: Identifier("x"), e: Identifier("r") }),
-					f: Box::new(Assignment { lvalue: Identifier("x"), e: Const(0) })
+					f: Box::new(Assignment { lvalue: Identifier("x"), e: Number(0) })
 				},
 				Call { id: "sum", params: () },
 				Write(Identifier("res"))
@@ -284,20 +324,22 @@ mod test {
 
 		expected_block.decls.iter().zip(parsed_block.decls.iter()).for_each(|(p, e)| assert_decls_match(p, e));
 
-		todo!()
+		assert_eq!(expected_block.locals, parsed_block.locals); // TODO: This will get more complicated
+
+		assert_statements_match(&expected_block.body, &parsed_block.body)
 	}
 
 	fn assert_decls_match(expected_decl: &Decl, parsed_decl: &Decl) {
 		match expected_decl {
 			Decl::List(expected_list) => {
-				let parsed_list = parsed_decl.list().unwrap_or_else(|| panic!("expected a Decl::List, found {:?}", parsed_decl));
+				let parsed_list = parsed_decl.list_ref().unwrap_or_else(|| panic!("expected a Decl::List, found {:?}", parsed_decl));
 
 				assert_eq!(expected_list.len(), parsed_list.len(), "Expected {} entries in decl list, found {} instead. The decls found were: {:?}", expected_list.len(), parsed_list.len(), parsed_list);
 
 				expected_list.iter().zip(parsed_list.iter()).for_each(|(e, p)| assert_symbols_match(e, p));
 			},
 			Decl::Procedure(expected_entry, expected_block) => {
-				let (parsed_entry, parsed_block) = parsed_decl.procedure().unwrap_or_else(|| panic!("expected a Decl::Procedure, found {:?}", parsed_decl));
+				let (parsed_entry, parsed_block) = parsed_decl.procedure_ref().unwrap_or_else(|| panic!("expected a Decl::Procedure, found {:?}", parsed_decl));
 				
 				assert_eq!(expected_entry.id, parsed_entry.id);
 				assert_eq!(expected_entry.params, parsed_entry.params); // Doesn't do much yet
@@ -310,20 +352,67 @@ mod test {
 	fn assert_symbols_match(expected_symbol: &Symbol, parsed_symbol: &Symbol) {
 		match expected_symbol {
 			Symbol::ConstDef { id: expected_id, c: expected_c } => {
-				let (parsed_id, parsed_c) = parsed_symbol.const_def().unwrap_or_else(|| panic!("expected a Symbol::ConstDef, found {:?}", parsed_symbol));
+				let (parsed_id, parsed_c) = parsed_symbol.const_def_ref().unwrap_or_else(|| panic!("expected a Symbol::ConstDef, found {:?}", parsed_symbol));
 				assert_eq!(*expected_id, parsed_id);
 				assert_exps_match(expected_c, parsed_c)
 			},
 			Symbol::TypeDef { id: expected_id, t: expected_t } => {
-				let (parsed_id, parsed_t) = parsed_symbol.type_def().unwrap_or_else(|| panic!("expected a Symbol::TypeDef, found {:?}", parsed_symbol));
+				let (parsed_id, parsed_t) = parsed_symbol.type_def_ref().unwrap_or_else(|| panic!("expected a Symbol::TypeDef, found {:?}", parsed_symbol));
 				assert_eq!(*expected_id, parsed_id);
 				assert_types_match(expected_t, parsed_t)
 			},
 			Symbol::VarDef(expected_v) => {
-				let parsed_v = parsed_symbol.var_def().unwrap_or_else(|| panic!("expected a Symbol::VarDef, found {:?}", parsed_symbol));
+				let parsed_v = parsed_symbol.var_def_ref().unwrap_or_else(|| panic!("expected a Symbol::VarDef, found {:?}", parsed_symbol));
 
 				assert_eq!(expected_v.var_id, parsed_v.var_id);
 				assert_eq!(expected_v.type_id, parsed_v.type_id);
+			},
+		}
+	}
+
+	fn assert_statements_match(expected_statement: &Statement, parsed_statement: &Statement) {
+		match expected_statement {
+			Statement::Error => if let Statement::Error = parsed_statement { } else {
+				panic!("expected the statement to parse as an error, instead got {:?}", parsed_statement)
+			},
+			Assignment { lvalue: expected_lvalue, e: expected_e } => {
+				let (parsed_lvalue, parsed_e) = parsed_statement.assignment_ref().unwrap_or_else(|| panic!("expected a Statement::Assignment, found {:?}", parsed_statement));
+
+				assert_exps_match(expected_lvalue, parsed_lvalue);
+				assert_exps_match(expected_e, parsed_e);
+			},
+			Read(expected_exp) => {
+				let parsed_exp = parsed_statement.read_ref().unwrap_or_else(|| panic!("expected a Statement::Read, found {:?}", parsed_statement));
+				assert_exps_match(expected_exp, parsed_exp);
+			},
+			Write(expected_exp) => {
+				let parsed_exp = parsed_statement.write_ref().unwrap_or_else(|| panic!("expected a Statement::Write, found {:?}", parsed_statement));
+				assert_exps_match(expected_exp, parsed_exp);
+			},
+			Call { id: expected_id, params: expected_params } => {
+				let (parsed_id, parsed_params) = parsed_statement.call_ref().unwrap_or_else(|| panic!("expected a Statement::Call, found {:?}", parsed_statement));
+				assert_eq!(*expected_id, parsed_id);
+				assert_eq!(*expected_params, *parsed_params);
+			},
+			List(expected_list) => {
+				let parsed_list = parsed_statement.list_ref().unwrap_or_else(|| panic!("expected a Statement::List, found {:?}", parsed_statement));
+
+				assert_eq!(expected_list.len(), parsed_list.len(), "Expected {} entries in statement list, found {} instead. The stateents found were: {:?}", expected_list.len(), parsed_list.len(), parsed_list);
+
+				expected_list.iter().zip(parsed_list.iter()).for_each(|(p, e)| assert_statements_match(p, e));
+			},
+			If { cond: expected_cond, t: expected_t, f: expected_f } => {
+				let (parsed_cond, parsed_t, parsed_f) = parsed_statement.if_ref().unwrap_or_else(|| panic!("expected a Statement::If, found {:?}", parsed_statement));
+
+				assert_exps_match(expected_cond, parsed_cond);
+				assert_statements_match(expected_t, parsed_t);
+				assert_statements_match(expected_f, parsed_f);
+			},
+			While { cond: expected_cond, s: expected_s } => {
+				let (parsed_cond, parsed_s) = parsed_statement.while_ref().unwrap_or_else(|| panic!("expected a Statement::While, found {:?}", parsed_statement));
+				
+				assert_exps_match(expected_cond, parsed_cond);
+				assert_statements_match(expected_s, parsed_s);
 			},
 		}
 	}
@@ -333,13 +422,27 @@ mod test {
 			Exp::Error => if let Exp::Error = parsed_exp { } else {
 				panic!("expected the expression to parse as an error, instead got {:?}", parsed_exp)
 			},
-			Const(expected_const) => {
-				
-				todo!()
+			Number(expected_number) => {
+				let parsed_number = parsed_exp.number_ref().unwrap_or_else(|| panic!("expected a Exp::Number, found {:?}", parsed_exp));
+				assert_eq!(*expected_number, *parsed_number);
 			},
-			Identifier(_) => todo!(),
-			Binary { op, left, right } => todo!(),
-			Unary { op, arg } => todo!(),
+			Identifier(expected_id) => {
+				let parsed_id = parsed_exp.identifier_ref().unwrap_or_else(|| panic!("expected a Exp::Identifier, found {:?}", parsed_exp));
+				assert_eq!(*expected_id, *parsed_id);
+			},
+			Binary { op: expected_op, left: expected_left, right: expected_right } => {
+				let (parsed_op, parsed_left, parsed_right) = parsed_exp.binary_ref().unwrap_or_else(|| panic!("expected a Exp::Binary, found {:?}", parsed_exp));
+
+				assert_eq!(*expected_op, *parsed_op);
+				assert_exps_match(expected_left, parsed_left);
+				assert_exps_match(expected_right, parsed_right);
+			},
+			Unary { op: expected_op, arg: expected_arg } => {
+				let (parsed_op, parsed_arg) = parsed_exp.unary_ref().unwrap_or_else(|| panic!("expected a Exp::Unary, found {:?}", parsed_exp));
+
+				assert_eq!(*expected_op, *parsed_op);
+				assert_exps_match(expected_arg, parsed_arg);
+			},
 			Dereference() => todo!(),
 			NarrowSubrange() => todo!(),
 			WidenSubrange() => todo!(),
@@ -349,11 +452,11 @@ mod test {
 	fn assert_types_match(expected_type: &Type, parsed_type: &Type) {
 		match expected_type {
 			Type::Identifier(expected_id) => {
-				let parsed_id = parsed_type.identifier().unwrap_or_else(|| panic!("expected a Type::Identifier, found {:?}", parsed_type));
-				assert_eq!(*expected_id, parsed_id)
+				let parsed_id = parsed_type.identifier_ref().unwrap_or_else(|| panic!("expected a Type::Identifier, found {:?}", parsed_type));
+				assert_eq!(*expected_id, *parsed_id)
 			},
 			Type::Subrange { min: expected_min, max: expected_max } => {
-				let (parsed_min, parsed_max) = parsed_type.subrange().unwrap_or_else(|| panic!("expected a Type::Subrange, found {:?}", parsed_type));
+				let (parsed_min, parsed_max) = parsed_type.subrange_ref().unwrap_or_else(|| panic!("expected a Type::Subrange, found {:?}", parsed_type));
 
 				assert_exps_match(expected_min, parsed_min);
 				assert_exps_match(expected_max, parsed_max);
