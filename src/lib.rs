@@ -8,7 +8,7 @@ pub mod parser {
 	lalrpop_mod!(pub grammer);
 	use self::lexer::LexicalError;
 
-use super::*;
+	use super::*;
 	pub use grammer::*;
 
 	pub type ParseError<'a> = lalrpop_util::ParseError<usize, tokens::Token<'a>, LexicalError>;
