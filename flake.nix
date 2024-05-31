@@ -21,7 +21,10 @@
 	        pkg-config
 	        # eza
 	        # fd
-	        rust-bin.beta.latest.default
+	        (rust-bin.stable.latest.default.override {
+						extensions = [ "rust-docs" "rustfmt" "clippy" "rust-src" "rust-analyzer" ];
+						targets = [ "wasm32-unknown-unknown" "x86_64-unknown-linux-gnu"];
+					})
 	      ];
 
 	      # shellHook = ''
